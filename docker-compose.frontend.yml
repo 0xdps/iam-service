@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # Admin Frontend (React)
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: admin
+    environment:
+      - REACT_APP_AUTH_API_URL=http://localhost:8080
+      - REACT_APP_IAM_API_URL=http://localhost:3000
+      - NODE_ENV=production
+    ports:
+      - "3001:3000"
+    networks:
+      - iam-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "service.name=admin-frontend"
+      - "service.version=1.0.0"
+
+networks:
+  iam-network:
+    driver: bridge
+    external: true
+    labels:
+      - "project=iam-service"

@@ -1,0 +1,174 @@
+version: '3.8'
+
+services:
+  # Databases
+  auth-db:
+    image: postgres:15-alpine
+    container_name: auth-db
+    environment:
+      POSTGRES_DB: authdb
+      POSTGRES_USER: authuser
+      POSTGRES_PASSWORD: authpass
+    volumes:
+      - auth_data:/var/lib/postgresql/data
+      - ./auth/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - iam-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authuser -d authdb"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  iam-db:
+    image: postgres:15-alpine
+    container_name: iam-db
+    environment:
+      POSTGRES_DB: iamdb
+      POSTGRES_USER: iamuser
+      POSTGRES_PASSWORD: iampass
+    volumes:
+      - iam_data:/var/lib/postgresql/data
+      - ./iam/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5433:5432"
+    networks:
+      - iam-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iamuser -d iamdb"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - iam-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Auth Service (Go)
+  auth-service:
+    build:
+      context: ./auth
+      dockerfile: Dockerfile
+    container_name: auth-service
+    environment:
+      - DB_HOST=auth-db
+      - DB_PORT=5432
+      - DB_NAME=authdb
+      - DB_USER=authuser
+      - DB_PASSWORD=authpass
+      - REDIS_URL=redis:6379
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - PORT=8080
+      - LOG_LEVEL=info
+    ports:
+      - "8080:8080"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - iam-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "service.name=auth-service"
+      - "service.version=1.0.0"
+
+  # IAM Service (Node.js/TypeScript)
+  iam-service:
+    build:
+      context: ./iam
+      dockerfile: Dockerfile
+    container_name: iam-service
+    environment:
+      - DB_HOST=iam-db
+      - DB_PORT=5432
+      - DB_NAME=iamdb
+      - DB_USER=iamuser
+      - DB_PASSWORD=iampass
+      - REDIS_URL=redis://redis:6379
+      - AUTH_SERVICE_URL=http://auth-service:8080
+      - PORT=3000
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+    ports:
+      - "3000:3000"
+    depends_on:
+      iam-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    networks:
+      - iam-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "service.name=iam-service"
+      - "service.version=1.0.0"
+
+  # Admin Frontend (React)
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: admin
+    environment:
+      - REACT_APP_AUTH_API_URL=http://localhost:8080
+      - REACT_APP_IAM_API_URL=http://localhost:3000
+      - NODE_ENV=production
+    ports:
+      - "3001:3000"
+    depends_on:
+      - auth-service
+      - iam-service
+    networks:
+      - iam-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "service.name=admin-frontend"
+      - "service.version=1.0.0"
+
+volumes:
+  auth_data:
+    driver: local
+  iam_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  iam-network:
+    driver: bridge
+    labels:
+      - "project=iam-service"

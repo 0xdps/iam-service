@@ -221,7 +221,8 @@ nohup.out
 __MACOSX/
 .AppleDouble
 .LSOverride
-Icon[]
+Icon[
+]
 
 # Thumbnails
 ._*
@@ -249,6 +250,16 @@ Temporary Items
 !.vscode/extensions.json
 !.vscode/*.code-snippets
 !*.code-workspace
+
+# Actually ignore all .vscode files (override above)
+.vscode/
+
+# React/Node.js build directories
+**/build/
+**/dist/
+
+# Admin frontend build artifacts
+admin/build/
 
 # Built Visual Studio Code Extensions
 *.vsix

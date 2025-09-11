@@ -1,43 +1,21 @@
-version: '3.8'
-
 services:
-  # Databases
-  auth-db:
+  # Database
+  postgres:
     image: postgres:15-alpine
-    container_name: auth-db-dev
+    container_name: postgres-dev
     environment:
-      POSTGRES_DB: authdb
-      POSTGRES_USER: authuser
-      POSTGRES_PASSWORD: authpass
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
-      - auth_data_dev:/var/lib/postgresql/data
-      - ./auth/migrations:/docker-entrypoint-initdb.d
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
     networks:
       - iam-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U authuser -d authdb"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  iam-db:
-    image: postgres:15-alpine
-    container_name: iam-db-dev
-    environment:
-      POSTGRES_DB: iamdb
-      POSTGRES_USER: iamuser
-      POSTGRES_PASSWORD: iampass
-    volumes:
-      - iam_data_dev:/var/lib/postgresql/data
-      - ./iam/migrations:/docker-entrypoint-initdb.d
-    ports:
-      - "5433:5432"
-    networks:
-      - iam-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U iamuser -d iamdb"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -60,9 +38,7 @@ services:
       retries: 3
 
 volumes:
-  auth_data_dev:
-    driver: local
-  iam_data_dev:
+  postgres_data_dev:
     driver: local
   redis_data_dev:
     driver: local

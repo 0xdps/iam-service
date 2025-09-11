@@ -1,43 +1,21 @@
-version: '3.8'
-
 services:
-  # Databases
-  auth-db:
+  # Database
+  postgres:
     image: postgres:15-alpine
-    container_name: auth-db
+    container_name: postgres
     environment:
-      POSTGRES_DB: authdb
-      POSTGRES_USER: authuser
-      POSTGRES_PASSWORD: authpass
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
-      - auth_data:/var/lib/postgresql/data
-      - ./auth/migrations:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
     networks:
       - iam-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U authuser -d authdb"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  iam-db:
-    image: postgres:15-alpine
-    container_name: iam-db
-    environment:
-      POSTGRES_DB: iamdb
-      POSTGRES_USER: iamuser
-      POSTGRES_PASSWORD: iampass
-    volumes:
-      - iam_data:/var/lib/postgresql/data
-      - ./iam/migrations:/docker-entrypoint-initdb.d
-    ports:
-      - "5433:5432"
-    networks:
-      - iam-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U iamuser -d iamdb"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -66,7 +44,7 @@ services:
       dockerfile: Dockerfile
     container_name: auth-service
     environment:
-      - DB_HOST=auth-db
+      - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=authdb
       - DB_USER=authuser
@@ -78,7 +56,7 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      auth-db:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -101,12 +79,12 @@ services:
       dockerfile: Dockerfile
     container_name: iam-service
     environment:
-      - DB_HOST=iam-db
+      - DB_HOST=postgres
       - DB_PORT=5432
       - DB_NAME=iamdb
       - DB_USER=iamuser
       - DB_PASSWORD=iampass
-      - REDIS_URL=redis:6379
+      - REDIS_URL=redis://redis:6379
       - AUTH_SERVICE_URL=http://auth-service:8080
       - PORT=3000
       - NODE_ENV=production
@@ -114,7 +92,7 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      iam-db:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -133,9 +111,7 @@ services:
       - "service.version=1.0.0"
 
 volumes:
-  auth_data:
-    driver: local
-  iam_data:
+  postgres_data:
     driver: local
   redis_data:
     driver: local
